@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Killstreak</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: a field tablet. Lobby screen first; in-game: HUD strip, killstreak ladder, prompt card + kill feed (stacked on phones). Single committed dark look. */
+:root{
+  color-scheme: dark;
+  --bg:#11130e; --panel:#1a1d15; --panel-2:#22261b; --line:#343a2a;
+  --fg:#e6e1cd; --muted:#8f927c; --accent:#f0a43a; --accent-ink:#1a1206;
+  --danger:#e0574b; --ok:#8bc46a;
+  --t1:#a4a892; --t6:#d27a55; --t2:#7fbf5f; --t3:#55a7e0; --t4:#c08ae8; --t5:#ffd23f;
+  --display:"Black Ops One", "Impact", "Arial Black", sans-serif;
+  --body:"Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --mono:"Share Tech Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45;
+  background-image:linear-gradient(rgba(240,164,58,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(240,164,58,.035) 1px,transparent 1px);
+  background-size:28px 28px}
+.app{max-width:1040px;margin:0 auto;padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:16px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px}
+.brand h1{font-family:var(--display);font-weight:400;font-size:clamp(34px,7vw,54px);line-height:.9;margin:0;letter-spacing:.02em}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:6px 0 0;font-family:var(--mono);font-size:13px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.modes{display:flex;gap:6px;flex-wrap:wrap}
+.modes button{white-space:nowrap;background:transparent;border:1px solid var(--line);padding:7px 12px;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.modes button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.modes button:hover:not(.on){color:var(--fg);border-color:var(--muted)}
+
+/* lobby */
+.lobby{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+.lobby-main{background:var(--panel);border:1px solid var(--line);padding:26px;display:flex;flex-direction:column;gap:18px;position:relative}
+.lobby-main::before,.card::before{content:"";position:absolute;top:-1px;left:-1px;width:28px;height:28px;border-top:3px solid var(--accent);border-left:3px solid var(--accent)}
+.lobby-main h2{font-family:var(--display);font-weight:400;font-size:clamp(30px,5.4vw,46px);line-height:1;margin:0;text-wrap:balance}
+.lobby-main .lede{margin:0;font-size:18px;max-width:46ch}
+.rules{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.rules li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:baseline}
+.rules li::before{content:"▸";color:var(--accent)}
+.deploy{align-self:flex-start;background:var(--accent);color:var(--accent-ink);border:0;padding:14px 30px;font-family:var(--display);font-size:26px;letter-spacing:.05em;box-shadow:0 0 0 0 rgba(240,164,58,.5);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(240,164,58,.45)}70%{box-shadow:0 0 0 14px rgba(240,164,58,0)}100%{box-shadow:0 0 0 0 rgba(240,164,58,0)}}
+.lobby-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.ghost{background:transparent;border:1px solid var(--line);padding:10px 16px;font-weight:600;color:var(--fg)}
+.ghost:hover{border-color:var(--muted)}
+.tiertable{background:var(--panel);border:1px solid var(--line);padding:18px;display:grid;gap:4px}
+.tiertable h3{margin:0 0 8px}
+.trow{display:grid;grid-template-columns:96px 34px minmax(0,1fr);gap:10px;align-items:baseline;padding:8px 10px;background:var(--bg);border-left:3px solid var(--c)}
+.trow .tn{font-weight:700;color:var(--c);text-transform:uppercase;letter-spacing:.05em;font-size:14px}
+.trow .tk{font-family:var(--mono);color:var(--c)}
+.trow .td{font-size:14px;color:var(--muted)}
+.lobbystats{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;color:var(--muted);padding-top:6px}
+.lobbystats b{color:var(--fg);font-weight:400}
+
+/* help panel */
+.help{background:var(--panel);border:1px solid var(--accent);padding:16px 18px;display:grid;gap:12px}
+.help h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0}
+.help .close{justify-self:start;background:var(--accent);color:var(--accent-ink);border:0;padding:8px 16px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+
+/* HUD */
+.hud{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);background:var(--panel)}
+.stat{padding:10px 14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0;position:relative}
+.stat:last-child{border-right:0}
+.stat .v{font-family:var(--mono);font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums;align-self:flex-start;transform-origin:left center}
+.stat .v.bump{animation:bump .45s}
+@keyframes bump{30%{transform:scale(1.35);color:var(--accent)}}
+.lives{display:flex;gap:6px;align-items:center;height:29px}
+.life{width:16px;height:22px;background:var(--ok);clip-path:polygon(50% 0,100% 18%,100% 60%,50% 100%,0 60%,0 18%);transition:background .2s}
+.life.lost{background:var(--line)}
+
+/* ladder */
+.ladder{position:relative;padding:28px 6px 48px}
+.track{position:relative;height:10px;background:var(--panel-2);border:1px solid var(--line)}
+.fill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,var(--accent),#ffcf6a);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.fill.nuked{background:var(--t5);box-shadow:0 0 14px var(--t5)}
+.notch{position:absolute;top:-24px;bottom:-32px;width:0}
+.notch::after{content:"";position:absolute;top:22px;height:14px;border-left:2px solid var(--muted)}
+.notch .n{font-family:var(--mono);font-size:12px;color:var(--muted);transform:translateX(-50%);position:absolute;top:0;left:0;white-space:nowrap}
+.notch .name{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);position:absolute;bottom:0;white-space:nowrap;transform:translateX(-50%);left:0}
+.notch.alt .name{bottom:-15px}
+.notch.hit .n,.notch.hit .name{color:var(--accent)}
+.notch.hit::after{border-color:var(--accent)}
+.notch.last .name,.notch.last .n{transform:translateX(-100%)}
+
+/* main grid */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);padding:22px;display:flex;flex-direction:column;gap:14px;min-width:0;position:relative}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:12px;padding:2px 8px;background:var(--panel-2);border:1px solid var(--line);letter-spacing:.05em}
+.subrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.roundlbl{font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.12em;text-transform:uppercase}
+#prompt{font-weight:700;font-size:clamp(22px,3.6vw,32px);line-height:1.15;margin:0;text-wrap:balance}
+.meta{margin:0;color:var(--muted);font-size:14px}
+.inputzone{position:relative;display:flex;flex-direction:column;gap:12px}
+form{display:flex;gap:8px}
+#guess{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--fg);font-family:var(--body);font-size:18px;padding:12px 14px}
+#guess::placeholder{color:#6b6e5c}
+#guess:disabled{opacity:.5}
+.fire{background:var(--accent);color:var(--accent-ink);border:0;padding:0 22px;font-family:var(--display);font-size:20px;letter-spacing:.06em}
+.fire:disabled{opacity:.4;cursor:default}
+.timer{display:flex;align-items:center;gap:10px}
+.tbar-wrap{flex:1;height:8px;background:var(--bg);border:1px solid var(--line);position:relative;overflow:hidden}
+.tbar{position:absolute;inset:0 auto 0 0;width:100%;background:var(--ok)}
+.tbar.warn{background:var(--accent)}
+.tbar.crit{background:var(--danger)}
+.tnum{font-family:var(--mono);font-size:20px;width:3.2em;text-align:right;font-variant-numeric:tabular-nums}
+.tnum.crit{color:var(--danger)}
+.countdown-ov{position:absolute;inset:-6px;display:flex;align-items:center;justify-content:center;gap:14px;background:rgba(17,19,14,.92);border:1px dashed var(--accent);z-index:2}
+.countdown-ov .lbl{font-family:var(--mono);font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.countdown-ov .num{font-family:var(--display);font-size:46px;line-height:1;color:var(--accent);min-width:1ch;text-align:center}
+.countdown-ov .num.tick{animation:tick .7s}
+@keyframes tick{0%{transform:scale(1.6);opacity:0}30%{transform:scale(1);opacity:1}}
+.feedback{margin:0;min-height:1.45em;font-weight:600}
+.feedback.bad{color:var(--danger)}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:13px;padding:0}
+.linkbtn:hover{color:var(--fg)}
+.shake{animation:shake .35s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+
+/* result stamp */
+#result{display:flex;flex-direction:column;gap:14px}
+.score{position:relative;border:2px solid var(--c);background:var(--panel-2);padding:22px 18px 16px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;overflow:hidden;animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+.score.kia{background:radial-gradient(circle at 50% 40%,rgba(224,87,75,.18),var(--panel-2) 70%)}
+.score .stamp{font-family:var(--display);font-size:clamp(44px,9vw,72px);line-height:1;color:var(--c);letter-spacing:.03em;text-shadow:0 0 22px color-mix(in srgb,var(--c) 35%,transparent)}
+.score .your{font-size:20px;font-weight:600}
+.score .pts{font-family:var(--mono);font-size:16px}
+.score .pts b{color:var(--c);font-weight:400}
+.score .quip{color:var(--muted);font-size:14px;max-width:44ch;margin:0}
+.meter{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;width:100%;margin-top:10px}
+.step{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 2px;border:1px solid var(--line);background:var(--bg);color:var(--muted);opacity:.5}
+.step.on{opacity:1;background:var(--c);border-color:var(--c);color:var(--bg);transform:translateY(-3px)}
+.step .sn{font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:700}
+.step .sk{font-family:var(--mono);font-size:12px}
+.score-foot{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:6px}
+.score-foot b{color:var(--fg);font-weight:400}
+.score-foot .earned{color:var(--accent)}
+.hitmarker{position:absolute;left:50%;top:44px;width:90px;height:90px;transform:translate(-50%,-50%);pointer-events:none;animation:hm .45s ease-out forwards}
+.hitmarker i{position:absolute;left:50%;top:50%;width:30px;height:4px;background:var(--fg);transform-origin:0 50%}
+.hitmarker i:nth-child(1){transform:rotate(45deg) translateX(14px)}
+.hitmarker i:nth-child(2){transform:rotate(135deg) translateX(14px)}
+.hitmarker i:nth-child(3){transform:rotate(225deg) translateX(14px)}
+.hitmarker i:nth-child(4){transform:rotate(315deg) translateX(14px)}
+@keyframes hm{0%{opacity:1;transform:translate(-50%,-50%) scale(.7)}60%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1.15)}}
+.next{align-self:center;background:var(--fg);color:var(--bg);border:0;padding:12px 26px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+@keyframes pop{from{transform:scale(.96);opacity:.3}to{transform:none;opacity:1}}
+
+/* kill feed */
+.feed{background:var(--panel);border:1px solid var(--line);padding:14px;min-width:0}
+.feed h3{margin:0 0 10px}
+.feed ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:13px}
+.feed li{display:flex;gap:8px;align-items:baseline;padding:5px 8px;background:var(--bg);border-left:3px solid var(--line);animation:slide .3s ease-out}
+.feed li .r{color:var(--muted)}
+.feed li .w{flex:1;min-width:0;overflow-wrap:anywhere}
+.feed li.reward{border-left-color:var(--accent);color:var(--accent)}
+.feed .empty{color:var(--muted);font-family:var(--body);font-size:13px}
+@keyframes slide{from{opacity:.2;transform:translateX(10px)}to{opacity:1;transform:none}}
+
+/* AAR */
+.aar{background:var(--panel);border:1px solid var(--line);padding:22px;display:grid;gap:18px}
+.aar h2{font-family:var(--display);font-weight:400;font-size:clamp(26px,5vw,40px);margin:0}
+.aar .rank{font-family:var(--mono);color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:4px 0 0}
+.aarstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.aarstats div{background:var(--panel-2);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.aarstats .v{font-family:var(--mono);font-size:24px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.emojirow{font-size:28px;letter-spacing:4px}
+.rounds{display:grid;gap:6px}
+.rounds .row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 10px;background:var(--bg);border-left:3px solid var(--line)}
+.rounds .row .q{color:var(--muted);font-size:13px}
+.rounds .row .a{font-weight:600}
+.rounds .row .t{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;padding:11px 18px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.share-text{width:100%;font-family:var(--mono);font-size:13px;background:var(--bg);color:var(--fg);border:1px solid var(--line);padding:10px;resize:none}
+.countdown{font-family:var(--mono);color:var(--muted)}
+
+footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+
+/* toast + nuke */
+.toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--accent);color:var(--accent-ink);font-family:var(--display);font-size:20px;padding:10px 20px;letter-spacing:.05em;z-index:20;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:calc(100vw - 32px);text-align:center}
+.nuke{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:radial-gradient(circle,rgba(255,236,170,.96),rgba(255,166,40,.9) 45%,rgba(60,20,0,.95));color:#2a1200;text-align:center;padding:24px;animation:flash 2.6s ease-out forwards}
+.nuke .big{font-family:var(--display);font-size:clamp(38px,9vw,90px);line-height:.95}
+.nuke .sub{font-family:var(--mono);font-size:16px;letter-spacing:.2em;text-transform:uppercase}
+@keyframes flash{0%{opacity:0}8%{opacity:1}80%{opacity:1}100%{opacity:0}}
+
+@media (max-width:760px){
+  .grid,.lobby{grid-template-columns:minmax(0,1fr)}
+  .hud{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat:nth-child(2){border-right:0}
+  .stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .aarstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .notch .name{display:none}
+  .ladder{padding-bottom:14px}
+  .card,.lobby-main{padding:18px}
+  .meter{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width:460px){.modes button{padding:6px 9px;font-size:12px}.trow{grid-template-columns:84px 28px minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>KILL<span>STREAK</span></h1>
+      <p id="dayTag">Daily op</p>
+    </div>
+    <nav class="modes" aria-label="Game mode">
+      <button id="modeDaily" class="on" type="button">Daily op</button>
+      <button id="modeFfa" type="button">Free-for-all</button>
+      <button id="helpBtn" type="button" aria-label="How to play">?</button>
+    </nav>
+  </header>
+
+  <section class="lobby" id="lobby" hidden>
+    <div class="lobby-main">
+      <span class="eyebrow" id="lobbyEyebrow">Daily op</span>
+      <h2>Name the deep cuts.</h2>
+      <p class="lede">Seven Call of Duty prompts from CoD4 to Black Ops III. Eight seconds each. The more niche your answer, the bigger your streak.</p>
+      <ul class="rules" id="rulesList"></ul>
+      <div class="lobby-actions">
+        <button class="deploy" id="deployBtn" type="button">DEPLOY</button>
+        <button class="ghost" id="lobbyFfa" type="button">Free-for-all instead</button>
+      </div>
+      <div class="lobbystats" id="lobbyStats"></div>
+    </div>
+    <div class="tiertable">
+      <h3 class="eyebrow">How answers score</h3>
+      <div id="tierTable"></div>
+    </div>
+  </section>
+
+  <section class="help" id="help" hidden>
+    <h2>Rules of engagement</h2>
+    <ul class="rules" id="helpRules"></ul>
+    <button class="close" id="helpClose" type="button">Back to the op</button>
+  </section>
+
+  <div id="game" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <section class="hud" aria-label="Status">
+        <div class="stat"><span class="eyebrow">Round</span><span class="v" id="roundV">1/7</span></div>
+        <div class="stat"><span class="eyebrow">Kills</span><span class="v" id="killsV">0</span></div>
+        <div class="stat"><span class="eyebrow">Streak</span><span class="v" id="streakV">0</span></div>
+        <div class="stat"><span class="eyebrow">Lives</span><div class="lives" id="lives"></div></div>
+      </section>
+
+      <section class="ladder" aria-label="Killstreak progress">
+        <div class="track"><div class="fill" id="fill"></div><div id="notches"></div></div>
+      </section>
+
+      <main class="grid" id="playArea">
+        <section class="card" id="play">
+          <div class="subrow"><span class="roundlbl" id="roundLbl">Round 1</span><div class="chips" id="chips"></div></div>
+          <h2 id="prompt"></h2>
+          <p class="meta" id="meta"></p>
+          <div class="inputzone" id="inputzone">
+            <form id="form" autocomplete="off">
+              <input id="guess" name="guess" type="text" placeholder="Type your answer" aria-label="Your answer" spellcheck="false" autocapitalize="off">
+              <button class="fire" id="fireBtn" type="submit">FIRE</button>
+            </form>
+            <div class="timer" id="timer"><div class="tbar-wrap"><div class="tbar" id="tbar"></div></div><span class="tnum" id="tnum">8.0</span></div>
+            <div class="countdown-ov" id="cdOv" hidden><span class="lbl">Inserting in</span><span class="num" id="cdNum">3</span></div>
+          </div>
+          <div class="subrow" id="fbRow">
+            <p class="feedback" id="feedback" aria-live="polite"></p>
+            <button class="linkbtn" id="giveUp" type="button">Pull out (forfeit round)</button>
+          </div>
+          <div id="result" hidden></div>
+        </section>
+        <aside class="feed" aria-label="Kill feed">
+          <h3 class="eyebrow">Kill feed</h3>
+          <ol id="feed"></ol>
+        </aside>
+      </main>
+
+      <section class="aar" id="aar" hidden></section>
+    </div>
+  </div>
+
+  <footer>Fan-made trivia. Not affiliated with or endorsed by Activision, Infinity Ward or Treyarch.</footer>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<div class="nuke" id="nuke" hidden><div class="sub">Killstreak 25</div><div class="big">TACTICAL NUKE<br>INCOMING</div></div>
+
+<script>
+/* ---------- tiers & rewards ---------- */
+const TIERS = [
+  {name:"Recruit",  kills:1, color:"var(--t1)", emoji:"⬜", desc:"The answer everyone blurts out.",
+   lines:["Every lobby in 2009 said this.","Straight off the main menu.","Your little cousin got that one too.","The loading-screen answer."]},
+  {name:"Tryhard",  kills:1, color:"var(--t6)", emoji:"🟧", desc:"Felt niche. Everyone else thought so too.",
+   lines:["You thought it was a deep cut. So did the whole lobby.","Sweaty, but not rare.","Classic tryhard pick. Half the server had it.","Clever. Just not clever enough."]},
+  {name:"Regular",  kills:2, color:"var(--t2)", emoji:"🟩", desc:"Solid knowledge. You put the hours in.",
+   lines:["Solid pull. You've put the hours in.","Not bad, soldier.","Respectable. A few people forgot that one."]},
+  {name:"Hardened", kills:3, color:"var(--t3)", emoji:"🟦", desc:"Proper prestige-grinder territory.",
+   lines:["Now we're talking. Prestige-grinder knowledge.","Most of the lobby forgot that existed.","That's a party-chat argument winner."]},
+  {name:"Veteran",  kills:4, color:"var(--t4)", emoji:"🟪", desc:"Deep cut. You were there on launch night.",
+   lines:["Deep cut. You were there on launch night.","Tenth-prestige knowledge.","Somebody owned the season pass."]},
+  {name:"Nuke",     kills:5, color:"var(--t5)", emoji:"☢️", desc:"The one hidden answer per prompt.",
+   lines:["Tactical nuke inbound. Nobody saw that coming.","That's the hidden answer. Unreal.","Lobby's over. You found the Nuke."]}
+];
+const KIA = {name:"KIA", kills:0, color:"var(--danger)", emoji:"💀"};
+const REWARDS = [
+  {at:3, name:"UAV", short:"UAV"}, {at:5, name:"Predator Missile", short:"Predator"}, {at:7, name:"Harrier Strike", short:"Harrier"},
+  {at:11, name:"Chopper Gunner", short:"Chopper Gunner"}, {at:15, name:"EMP", short:"EMP"}, {at:25, name:"Tactical Nuke", short:"Tactical Nuke"}
+];
+const ROUNDS = 7, LIVES = 3, TIME = 8, KEY = "ks2-daily-";
+const RULES = [
+  "Seven prompts a day, the same for everyone. Give one answer per prompt.",
+  "The clock gives you 8 seconds. A wrong answer or running out of time costs a life.",
+  "Lose all 3 lives and you're KIA: no kills for the round, and your streak resets.",
+  "Every prompt hides one deep-cut answer: the Nuke. Chain 25 kills without dying to call in a Tactical Nuke."
+];
+
+/* ---------- question bank ----------
+   t: [Recruit, Regular, Hardened, Veteran] lists, n: the Nuke answer.
+   "Display|alias|alias" — aliases are matched too. */
+const BANK = [
+{id:"cod4maps", g:["CoD4"], q:"Name a multiplayer map from Call of Duty 4: Modern Warfare (DLC counts)",
+ t:[["Crash","Shipment","Backlot","Crossfire|cross fire"],
+    ["Strike","Overgrown","Vacant","Bog","District","Ambush","Countdown"],
+    ["Bloc","Pipeline","Showdown","Downpour","Wet Work|wetwork","Killhouse|kill house"],
+    ["Chinatown|china town","Creek","Broadcast"]],
+ n:"Winter Crash|christmas crash|xmas crash"},
+{id:"mw2maps", g:["MW2"], q:"Name a multiplayer map from Modern Warfare 2 (DLC counts)",
+ t:[["Rust","Terminal","Highrise|high rise","Favela","Scrapyard|scrap yard"],
+    ["Afghan","Estate","Karachi","Quarry","Skidrow|skid row","Underpass","Sub Base|subbase","Invasion","Derail","Wasteland","Rundown|run down"],
+    ["Crash","Overgrown","Strike","Vacant","Bailout|bail out","Salvage","Storm"],
+    ["Carnival","Fuel"]],
+ n:"Trailer Park"},
+{id:"bo1maps", g:["BO1"], q:"Name a multiplayer map from Black Ops (DLC counts)",
+ t:[["Nuketown|nuke town","Firing Range","Summit","Jungle"],
+    ["Array","Cracked","Crisis","Grid","Havana","Launch","Radiation","Villa","WMD","Hanoi"],
+    ["Kowloon","Berlin Wall","Stadium","Discovery","Hotel"],
+    ["Convoy","Stockpile","Zoo","Hangar 18|hangar","Drive-In|drive in","Silo"]],
+ n:"Hazard"},
+{id:"bo2maps", g:["BO2"], q:"Name a multiplayer map from Black Ops II (DLC counts)",
+ t:[["Nuketown 2025|nuketown|nuke town","Hijacked","Raid","Standoff","Slums","Express"],
+    ["Aftermath","Cargo","Carrier","Drone","Meltdown","Overflow","Plaza","Turbine","Yemen"],
+    ["Studio","Grind","Downhill","Hydro","Mirage","Encore","Vertigo","Magma"],
+    ["Cove","Detour","Rush","Uplink","Dig","Frost","Takeoff|take off"]],
+ n:"Pod"},
+{id:"bo3maps", g:["BO3"], q:"Name a multiplayer map from Black Ops III (DLC counts)",
+ t:[["Nuk3town|nuketown|nuke town","Combine","Fringe","Hunted","Evac","Stronghold"],
+    ["Aquarium","Breach","Exodus","Havoc","Infection","Metro","Redwood"],
+    ["Skyjacked|sky jacked","Gauntlet","Splash","Rise","Knockout|knock out","Spire","Verge","Rift"],
+    ["Berserk","Cryogen","Empire","Rumble","Citadel","Micro","Outlaw"]],
+ n:"Rupture"},
+{id:"mw2streaks", g:["MW2"], q:"Name a killstreak reward from Modern Warfare 2",
+ t:[["UAV","Care Package","Predator Missile|predator","Tactical Nuke|nuke","AC-130|ac130"],
+    ["Harrier Strike|harrier|harriers","Chopper Gunner","Counter-UAV|counter uav|cuav","Sentry Gun|sentry","Attack Helicopter|attack heli","Pave Low|pavelow","EMP"],
+    ["Stealth Bomber"],
+    ["Precision Airstrike|precision air strike|airstrike"]],
+ n:"Emergency Airdrop|emergency air drop"},
+{id:"bo1streaks", g:["BO1"], q:"Name a killstreak reward from Black Ops",
+ t:[["Spy Plane|uav","RC-XD|rcxd","Attack Dogs|dogs","Gunship","Chopper Gunner","Napalm Strike|napalm"],
+    ["Counter-Spy Plane|counter spy plane|counter uav","Care Package","Attack Helicopter","Blackbird|sr-71|sr71","Sentry Gun","Rolling Thunder"],
+    ["SAM Turret|sam","Valkyrie Rockets|valkyrie"],[]],
+ n:"Mortar Team|mortar"},
+{id:"bo2streaks", g:["BO2"], q:"Name a scorestreak from Black Ops II",
+ t:[["UAV","Hunter Killer|hunterkiller","Care Package","VTOL Warship|vtol","K9 Unit|k9|dogs","Swarm","Lodestar","Lightning Strike"],
+    ["Counter-UAV|cuav|counter uav","RC-XD|rcxd","Orbital VSAT|vsat","Stealth Chopper","Escort Drone","Warthog|a10","Dragonfire","Sentry Gun","Hellstorm Missile|hellstorm","EMP Systems|emp","Death Machine"],
+    ["War Machine","AGR|a.g.r."],[]],
+ n:"Guardian"},
+{id:"cod4perks", g:["CoD4"], q:"Name a perk from Call of Duty 4: Modern Warfare",
+ t:[["Stopping Power","Juggernaut|jugg","Martyrdom","Last Stand","UAV Jammer|jammer","Sleight of Hand|soh","Extreme Conditioning"],
+    ["Double Tap","Overkill","Steady Aim","Deep Impact","Claymore x2|claymore|claymores","C4 x2|c4","Dead Silence","Bandolier"],
+    ["RPG-7 x2|rpg|rpg x2|rpg-7","Frag x3|frag|frags","Bomb Squad","Iron Lungs"],
+    ["Sonic Boom","Special Grenades x3|special grenades"]],
+ n:"Eavesdrop"},
+{id:"mw2perks", g:["MW2"], q:"Name a perk from Modern Warfare 2 (not deathstreaks)",
+ t:[["Marathon","Sleight of Hand|soh","Scavenger","One Man Army|oma","Stopping Power","Lightweight","Cold-Blooded|cold blooded","Danger Close","Commando","Ninja"],
+    ["Bling","Hardline","Steady Aim"],["Last Stand","Scrambler"],[]],
+ n:"SitRep|sit rep"},
+{id:"bo1perks", g:["BO1"], q:"Name a multiplayer perk from Black Ops",
+ t:[["Lightweight","Flak Jacket","Scavenger","Ghost","Hardline","Sleight of Hand|soh","Steady Aim","Marathon","Ninja","Second Chance"],
+    ["Hardened","Warlord"],["Tactical Mask","Hacker"],[]],
+ n:"Scout"},
+{id:"bo2perks", g:["BO2"], q:"Name a multiplayer perk from Black Ops II",
+ t:[["Lightweight","Hardline","Ghost","Flak Jacket","Toughness","Fast Hands","Scavenger","Extreme Conditioning","Dead Silence","Dexterity"],
+    ["Blind Eye","Cold Blooded","Hard Wired"],["Engineer","Tactical Mask"],[]],
+ n:"Awareness"},
+{id:"perkacola", g:["BO1","BO2","BO3"], q:"Name a Perk-a-Cola from Black Ops I, II or III Zombies",
+ t:[["Juggernog|jugg|juggernaut","Speed Cola","Quick Revive","Double Tap Root Beer|double tap|double tap 2.0"],
+    ["Stamin-Up|staminup|stamina up","PhD Flopper|phd","Mule Kick","Deadshot Daiquiri|deadshot"],
+    ["Electric Cherry","Widow's Wine|widows wine","Who's Who|whos who"],
+    ["Tombstone Soda|tombstone"]],
+ n:"Vulture Aid|vulture"},
+{id:"zmaps", g:["BO1","BO2","BO3"], q:"Name a Zombies map that shipped in Black Ops I, II or III (remasters count)",
+ t:[["Kino der Toten|kino","Moon","Origins","Mob of the Dead|mob","Shadows of Evil|soe","Der Eisendrache|eisendrache","TranZit|transit"],
+    ["Five","Ascension","Shangri-La|shangrila","Call of the Dead|cotd","Buried","Die Rise","Zetsubou No Shima|zetsubou","Gorod Krovi|gorod","Revelations","The Giant|giant","Der Riese"],
+    ["Nacht der Untoten|nacht","Verrückt|verruckt","Shi No Numa","Nuketown Zombies|nuketown","Town","Farm","Bus Depot|depot"],
+    ["Dead Ops Arcade|dead ops"]],
+ n:"Diner"},
+{id:"cod4missions", g:["CoD4"], q:"Name a campaign mission from Call of Duty 4: Modern Warfare",
+ t:[["All Ghillied Up","One Shot, One Kill|one shot one kill","Crew Expendable","Death from Above","Mile High Club","Shock and Awe","Aftermath"],
+    ["F.N.G.|fng","Charlie Don't Surf","The Bog|bog","War Pig","Game Over","Blackout","Heat"],
+    ["The Coup|coup","Hunted","Safehouse|safe house","The Sins of the Father|sins of the father","All In"],
+    ["No Fighting in the War Room"]],
+ n:"Ultimatum"},
+{id:"mw2missions", g:["MW2"], q:"Name a campaign mission from Modern Warfare 2",
+ t:[["No Russian","Cliffhanger","The Gulag|gulag","Loose Ends","Endgame|end game","Contingency"],
+    ["Wolverines!","Takedown|take down","Second Sun","Whiskey Hotel","Team Player","Just Like Old Times","S.S.D.D.|ssdd"],
+    ["Hornet's Nest|hornets nest","Exodus","The Only Easy Day... Was Yesterday|the only easy day was yesterday|only easy day","Of Their Own Accord","The Enemy of My Enemy|enemy of my enemy"],[]],
+ n:"Museum|the museum"},
+{id:"bo1missions", g:["BO1"], q:"Name a campaign mission from Black Ops",
+ t:[["Operation 40","Vorkuta","Numbers","Rebirth","Redemption","Victor Charlie"],
+    ["Executive Order","S.O.G.|sog","The Defector|defector","Project Nova|nova","WMD","Revelations"],
+    ["Crash Site"],[]],
+ n:"Payback"},
+{id:"bo2missions", g:["BO2"], q:"Name a story mission from Black Ops II (not Strike Force)",
+ t:[["Pyrrhic Victory","Celerium","Karma","Suffer With Me","Judgment Day|judgement day"],
+    ["Time and Fate","Fallen Angel","Cordis Die"],
+    ["Old Wounds","Odysseus"],[]],
+ n:"Achilles' Veil|achilles veil"},
+{id:"bo1chars", g:["BO1"], q:"Name a character from the Black Ops campaign",
+ t:[["Alex Mason|mason","Frank Woods|woods","Viktor Reznov|reznov","Jason Hudson|hudson"],
+    ["Nikita Dragovich|dragovich","Lev Kravchenko|kravchenko","Friedrich Steiner|steiner","Joseph Bowman|bowman","Grigori Weaver|weaver","John F. Kennedy|jfk|kennedy","Fidel Castro|castro"],
+    ["Dimitri Petrenko|petrenko","Daniel Clarke|clarke","Robert McNamara|mcnamara"],
+    ["Carlos"]],
+ n:"Sergei Kozlov|sergei|kozlov"},
+{id:"mw2chars", g:["MW2"], q:"Name a character from the Modern Warfare 2 campaign",
+ t:[["John \"Soap\" MacTavish|soap|mactavish","Captain Price|price","Ghost|simon riley","General Shepherd|shepherd","Vladimir Makarov|makarov","Gary \"Roach\" Sanderson|roach"],
+    ["Joseph Allen|allen","Sgt. Foley|foley","Cpl. Dunn|dunn","Pvt. Ramirez|ramirez","Nikolai","Alejandro Rojas|rojas"],
+    ["Meat","Royce","Archer","Toad","Ozone","Scarecrow"],
+    ["Overlord"]],
+ n:"Worm"},
+{id:"cod4chars", g:["CoD4"], q:"Name a character from the Call of Duty 4 campaign",
+ t:[["John \"Soap\" MacTavish|soap|mactavish","Captain Price|price","Gaz","Imran Zakhaev|zakhaev","Khaled Al-Asad|al-asad|al asad|asad"],
+    ["Paul Jackson|jackson","Griggs","Nikolai","Kamarov","Victor Zakhaev|victor","Yasir Al-Fulani|al-fulani|fulani","Captain MacMillan|macmillan"],
+    ["Lt. Vasquez|vasquez","Wallcroft"],[]],
+ n:"Pelayo"},
+{id:"mw2ars", g:["MW2"], q:"Name an assault rifle from Modern Warfare 2",
+ t:[["ACR","M4A1|m4","AK-47|ak47","SCAR-H|scar","FAMAS","M16A4|m16"],["TAR-21|tar|tar21","FAL"],[],[]],
+ n:"F2000"},
+{id:"snipers", g:["CoD4","MW2"], q:"Name a sniper rifle from CoD4 or Modern Warfare 2",
+ t:[["Intervention|cheytac","Barrett .50cal|barrett|50 cal","M40A3|m40"],["Dragunov","WA2000|wa2k"],["M21 EBR|ebr"],["M21"]],
+ n:"R700"},
+{id:"bo1smgs", g:["BO1"], q:"Name a submachine gun from Black Ops multiplayer",
+ t:[["AK74u|ak-74u","MP5K|mp5","Spectre","MPL"],["Skorpion","Uzi","PM63"],["MAC11|mac-11"],[]],
+ n:"Kiparis"},
+{id:"bo1ars", g:["BO1"], q:"Name an assault rifle from Black Ops multiplayer",
+ t:[["Galil","AK47|ak-47","FAMAS","Commando","AUG","FN FAL|fal"],["M16","M14","Enfield"],[],[]],
+ n:"G11"},
+{id:"bo2ars", g:["BO2"], q:"Name an assault rifle from Black Ops II",
+ t:[["AN-94|an94","MTAR","M8A1","SCAR-H|scar","M27"],["Type 25","SWAT-556|swat","FAL OSW|fal"],[],[]],
+ n:"SMR"},
+{id:"bo3ars", g:["BO3"], q:"Name an assault rifle from Black Ops III (base game)",
+ t:[["KN-44|kn44","ICR-1|icr","Man-O-War|man o war","HVK-30|hvk"],["XR-2|xr2","M8A7"],[],[]],
+ n:"Sheiva"},
+{id:"wonder", g:["BO1","BO2","BO3"], q:"Name a Zombies wonder weapon from Black Ops I, II or III",
+ t:[["Ray Gun|raygun","Thundergun|thunder gun","Wunderwaffe DG-2|wunderwaffe|dg2","Ray Gun Mark II|ray gun mk2|ray gun mark 2"],
+    ["Winter's Howl|winters howl","Scavenger","Blundergat","Staff of Fire|fire staff","Staff of Ice|ice staff","Staff of Lightning|lightning staff","Staff of Wind|wind staff","Apothicon Servant|apothicon","Wrath of the Ancients|bow","KT-4|kt4","Wave Gun|zap guns|zap gun","Gersh Device|gersh","Ragnarok DG-4|ragnarok","GKZ-45 Mk3|gkz","Jet Gun"],
+    ["V-R11|vr11","31-79 JGb215|baby gun|jgb215","Quantum Entanglement Device|qed","Acid Gat","Paralyzer","Gauntlet of Siegfried"],[]],
+ n:"Sliquifier"},
+{id:"lmgs", g:["CoD4","MW2","BO1","BO2","BO3"], q:"Name a light machine gun from any of the five games (base game)",
+ t:[["M249 SAW|saw|m249","RPD","L86 LSW|l86","MG4","Stoner63|stoner|stoner 63","LSAT","HAMR","Dingo","BRM","M60|m60e4"],
+    ["AUG HBAR|aug","RPK","MK 48|mk48","Gorgon","48 Dredge|dredge"],["QBB LSW|qbb","HK21"],[]],
+ n:"M240"},
+{id:"launchers", g:["MW2","BO1"], q:"Name a launcher from Modern Warfare 2 or Black Ops",
+ t:[["RPG-7|rpg","Javelin","Stinger","AT4-HS|at4","China Lake"],["Thumper","M72 LAW|law|m72"],[],[]],
+ n:"Strela-3|strela"},
+{id:"mw2shotguns", g:["MW2"], q:"Name a shotgun from Modern Warfare 2",
+ t:[["Model 1887|1887|1887s","SPAS-12|spas","AA-12|aa12"],["Ranger|rangers","Striker"],[],[]],
+ n:"M1014"},
+{id:"mw2mp", g:["MW2"], q:"Name a machine pistol from Modern Warfare 2",
+ t:[["G18|glock","TMP"],["PP2000|pp"],[],[]],
+ n:"M93 Raffica|raffica|m93"},
+{id:"bo2smgs", g:["BO2"], q:"Name a submachine gun from Black Ops II (DLC counts)",
+ t:[["MSMC","Vector K10|vector","PDW-57|pdw","MP7"],["Skorpion EVO|skorpion|evo","Peacekeeper"],[],[]],
+ n:"Chicom CQB|chicom"},
+{id:"bo3smgs", g:["BO3"], q:"Name a submachine gun from Black Ops III (base game)",
+ t:[["Kuda","VMP","Vesper","Weevil"],["Pharo"],[],[]],
+ n:"Razorback"},
+{id:"specialists", g:["BO3"], q:"Name a Specialist from Black Ops III",
+ t:[["Ruin","Outrider","Prophet","Battery","Seraph"],["Nomad","Reaper","Firebreak"],[],[]],
+ n:"Spectre"},
+{id:"specabilities", g:["BO3"], q:"Name a Specialist weapon or ability from Black Ops III",
+ t:[["Gravity Spikes","Sparrow","Tempest","War Machine","Annihilator","Ripper","Purifier","Scythe"],
+    ["Overdrive","Vision Pulse","Kinetic Armor","Combat Focus","Heat Wave|heatwave","Active Camo","H.I.V.E.|hive"],
+    ["Rejack","Glitch"],[]],
+ n:"Psychosis"},
+{id:"zchars", g:["BO1","BO2","BO3"], q:"Name a playable Zombies character from Black Ops I, II or III",
+ t:[["Tank Dempsey|dempsey","Nikolai Belinski|nikolai","Takeo Masaki|takeo","Edward Richtofen|richtofen"],
+    ["John F. Kennedy|jfk|kennedy","Richard Nixon|nixon","Fidel Castro|castro","Robert McNamara|mcnamara","Samuel Stuhlinger|stuhlinger","Misty|abigail briarton","Marlton Johnson|marlton","Russman","Albert Arlington|weasel|arlington","Billy Handsome|billy","Sal DeLuca|sal","Finn O'Leary|finn"],
+    ["Sarah Michelle Gellar|gellar","Danny Trejo|trejo","Robert Englund|englund","Floyd Campbell|floyd","Jessica Rose|jessica","Jack Vincent","Nero Blackstone|nero"],[]],
+ n:"Michael Rooker|rooker"},
+{id:"wildcards", g:["BO2"], q:"Name a Wildcard from the Black Ops II Pick 10 system",
+ t:[["Overkill","Primary Gunfighter","Perk 1 Greed|perk greed"],["Perk 2 Greed","Perk 3 Greed","Secondary Gunfighter","Danger Close"],[],[]],
+ n:"Tactician"},
+{id:"deathstreaks", g:["MW2"], q:"Name a deathstreak from Modern Warfare 2",
+ t:[["Painkiller","Martyrdom"],["Final Stand"],[],[]],
+ n:"Copycat"},
+{id:"cod4ars", g:["CoD4"], q:"Name an assault rifle from Call of Duty 4 multiplayer",
+ t:[["M4 Carbine|m4","AK-47|ak47","M16A4|m16","G3"],["G36C|g36","M14"],[],[]],
+ n:"MP44|stg44"},
+{id:"mw2equip", g:["MW2"], q:"Name a piece of lethal or tactical equipment from Modern Warfare 2",
+ t:[["Frag Grenade|frag","Semtex","Throwing Knife|knife","Claymore","C4","Tactical Insertion|tac insert"],
+    ["Flash Grenade|flashbang|flash","Stun Grenade|stun"],["Smoke Grenade|smoke"],[]],
+ n:"Blast Shield"}
+];
+
+/* Answers that feel niche but everyone picks. Moved into the Tryhard tier. */
+const TRYHARD = {
+  cod4maps:["Killhouse","Showdown"], mw2maps:["Derail","Wasteland"], bo1maps:["Kowloon","Hanoi"], bo2maps:["Studio","Grind"],
+  bo3maps:["Skyjacked","Redwood"], mw2streaks:["EMP","Pave Low"], bo1streaks:["Rolling Thunder","Blackbird"], bo2streaks:["Swarm","Orbital VSAT"],
+  cod4perks:["Iron Lungs","Deep Impact"], mw2perks:["Bling","Scrambler"], bo1perks:["Second Chance","Hacker"], bo2perks:["Blind Eye","Hard Wired"],
+  perkacola:["Mule Kick","PhD Flopper"], zmaps:["Five","Shi No Numa"], cod4missions:["Charlie Don't Surf","War Pig"], mw2missions:["Wolverines!","S.S.D.D."],
+  bo1missions:["Victor Charlie","Numbers"], bo2missions:["Time and Fate"], bo1chars:["Friedrich Steiner","Dimitri Petrenko"], mw2chars:["Nikolai","Alejandro Rojas"],
+  cod4chars:["Captain MacMillan","Kamarov"], mw2ars:["FAL","TAR-21"], snipers:["WA2000"], bo1smgs:["PM63"], bo1ars:["Enfield","AUG"], bo2ars:["Type 25"],
+  bo3ars:["M8A7"], wonder:["Scavenger","Wave Gun"], lmgs:["AUG HBAR","Stoner63"], launchers:["Thumper"], mw2shotguns:["Ranger"], mw2mp:["PP2000"],
+  bo2smgs:["Peacekeeper"], bo3smgs:["Pharo"], specialists:["Firebreak"], specabilities:["Kinetic Armor"], zchars:["Danny Trejo","Richard Nixon"],
+  wildcards:["Danger Close"], deathstreaks:["Final Stand"], cod4ars:["G3"], mw2equip:["Tactical Insertion"]
+};
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase()
+  .replace(/&/g,"and").replace(/^the\s+/,"").replace(/[^a-z0-9]/g,"");
+function lev(a,b){
+  if(a===b) return 0;
+  const m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  let prev=Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=m;i++){const cur=[i];for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur;}
+  return prev[n];
+}
+const TIER_OF_LIST = [0,2,3,4]; // t[0..3] -> tier index
+function entries(p){
+  const th=TRYHARD[p.id]||[], out=[];
+  p.t.forEach((list,li)=>list.forEach(s=>{const parts=s.split("|");out.push({name:parts[0],tier:th.includes(parts[0])?1:TIER_OF_LIST[li],keys:parts.map(norm)});}));
+  const parts=p.n.split("|"); out.push({name:parts[0],tier:5,keys:parts.map(norm)});
+  return out;
+}
+function match(p,guess){
+  const g=norm(guess); if(!g) return null;
+  const list=entries(p);
+  for(const e of list) if(e.keys.includes(g)) return e;
+  const thr = g.length<=3?0 : g.length<=6?1 : 2;
+  let best=null,bd=99;
+  for(const e of list) for(const k of e.keys){const d=lev(g,k); if(d<bd){bd=d;best=e;}}
+  return bd<=thr?best:null;
+}
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function pick(seed){
+  const r=mulberry(seed), arr=BANK.map(b=>b.id);
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  return arr.slice(0,ROUNDS);
+}
+const byId = id => BANK.find(b=>b.id===id);
+function todayNum(){const d=new Date();return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(2026,9,28))/864e5)+1;}
+const store = {
+  get(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+};
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const rand = a => a[Math.floor(Math.random()*a.length)];
+
+/* ---------- state ---------- */
+let S, phase = "lobby"; // lobby | countdown | live | result | aar
+function freshState(mode){
+  const day=todayNum();
+  const seed = mode==="daily" ? day*9973+17 : Math.floor(Math.random()*1e9);
+  return {mode, day, ids:pick(seed), round:0, lives:LIVES, kills:0, streak:0, best:0, results:[], feed:[], done:false, roundOver:false};
+}
+function save(){ if(S.mode==="daily") store.set(KEY+S.day,S); }
+function loadDaily(){ return store.get(KEY+todayNum()) || freshState("daily"); }
+
+function start(data){
+  S = (data && data.S) || loadDaily();
+  buildStatic();
+  phase = S.done ? "aar" : (data && data.S && S.roundOver) ? "result" : "lobby";
+  render();
+}
+
+/* ---------- static UI ---------- */
+function buildStatic(){
+  const rules = RULES.map(r=>`<li>${r}</li>`).join("");
+  $("rulesList").innerHTML = rules; $("helpRules").innerHTML = rules;
+  $("tierTable").innerHTML = TIERS.map(t=>`<div class="trow" style="--c:${t.color}"><span class="tn">${t.name}</span><span class="tk">+${t.kills}</span><span class="td">${t.desc}</span></div>`).join("")
+    + `<div class="trow" style="--c:var(--danger)"><span class="tn">KIA</span><span class="tk">0</span><span class="td">Out of lives. Streak resets to zero.</span></div>`;
+  $("notches").innerHTML = REWARDS.map((r,i)=>`<div class="notch${i===REWARDS.length-1?" last":""}${i%2?" alt":""}" data-at="${r.at}" style="left:${r.at/25*100}%"><span class="n">${r.at}</span><span class="name">${r.short}</span></div>`).join("");
+}
+
+/* ---------- render ---------- */
+function render(){
+  $("modeDaily").classList.toggle("on",S.mode==="daily");
+  $("modeFfa").classList.toggle("on",S.mode==="ffa");
+  $("dayTag").textContent = S.mode==="daily" ? `Daily op #${S.day} · CoD4 → BO3` : "Free-for-all · random prompts";
+  $("lobby").hidden = phase!=="lobby";
+  $("game").hidden = phase==="lobby";
+  if(phase==="lobby") return renderLobby();
+  renderHud();
+  if(phase==="aar"){ $("playArea").hidden=true; renderAAR(); return; }
+  $("playArea").hidden=false; $("aar").hidden=true;
+  renderRound();
+}
+
+function renderLobby(){
+  const started = S.results.length>0 || S.round>0;
+  $("lobbyEyebrow").textContent = S.mode==="daily"
+    ? `Daily op #${S.day} · ${new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}`
+    : "Free-for-all · random prompts, play as often as you like";
+  $("deployBtn").textContent = started ? `RESUME · ROUND ${S.round+1}` : "DEPLOY";
+  $("lobbyFfa").hidden = S.mode!=="daily";
+  const st = store.get("ks-stats");
+  $("lobbyStats").innerHTML = st && st.played ? `<span>Ops played <b>${st.played}</b></span><span>Best op <b>${st.best} kills</b></span><span>Nukes called <b>${st.nukes}</b></span>` : "";
+}
+
+function renderHud(){
+  $("roundV").textContent = `${Math.min(S.round+1,ROUNDS)}/${ROUNDS}`;
+  $("killsV").textContent = S.kills;
+  $("streakV").textContent = S.streak;
+  $("lives").innerHTML = Array.from({length:LIVES},(_,i)=>`<span class="life${i>=S.lives?" lost":""}"></span>`).join("");
+  $("fill").style.width = Math.min(S.streak,25)/25*100+"%";
+  $("fill").classList.toggle("nuked",S.streak>=25);
+  document.querySelectorAll(".notch").forEach(n=>n.classList.toggle("hit",S.streak>=+n.dataset.at));
+  $("feed").innerHTML = S.feed.length ? S.feed.slice().reverse().map(f=>
+    f.reward ? `<li class="reward"><span class="w">▲ ${f.reward} ready</span></li>`
+             : `<li style="border-left-color:${f.color}"><span class="r">R${f.r}</span><span class="w">${esc(f.text)}</span><span style="color:${f.color}">${f.kills?"+"+f.kills:"✕"}</span></li>`
+  ).join("") : `<li class="empty">No contacts yet. Your answers land here.</li>`;
+}
+
+function renderRound(){
+  const p = byId(S.ids[S.round]);
+  $("roundLbl").textContent = `Round ${S.round+1} of ${ROUNDS}`;
+  $("chips").innerHTML = p.g.map(g=>`<span class="chip">${g}</span>`).join("");
+  $("prompt").textContent = p.q;
+  $("meta").textContent = `${entries(p).length} valid answers · one is the Nuke`;
+  const res = phase==="result";
+  $("inputzone").hidden = res; $("fbRow").hidden = res;
+  const live = phase==="live";
+  $("guess").disabled = !live; $("fireBtn").disabled = !live; $("giveUp").hidden = !live;
+  $("cdOv").hidden = phase!=="countdown";
+  if(res) renderResult(p); else { $("result").hidden=true; $("result").innerHTML=""; if(!live && tEnd===null) drawTimer(tPaused!=null?tPaused/1000:TIME); }
+}
+
+function renderResult(p){
+  const res = S.results[S.round];
+  const kia = res.tier===null;
+  const tier = kia ? KIA : TIERS[res.tier];
+  const nextR = REWARDS.find(r=>S.streak<r.at);
+  const meter = TIERS.map((t,i)=>`<div class="step${!kia&&i===res.tier?" on":""}" style="--c:${t.color}"><span class="sn">${t.name}</span><span class="sk">+${t.kills}</span></div>`).join("");
+  const last = S.round===ROUNDS-1;
+  $("result").innerHTML = `
+    <div class="score${kia?" kia":""}" style="--c:${tier.color}">
+      ${!kia && res.fresh ? `<div class="hitmarker" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`:""}
+      <div class="stamp">${kia?"KIA":tier.name.toUpperCase()}</div>
+      <div class="your">${kia?(res.why||"Out of lives"):`“${esc(res.answer)}”`}</div>
+      <div class="pts">${kia?"0 kills · streak reset":`<b>+${tier.kills} ${tier.kills===1?"kill":"kills"}</b> · streak ${S.streak}`}</div>
+      <p class="quip">${esc(res.quip||"")}</p>
+      ${kia?"":`<div class="meter" aria-label="Rarity scale">${meter}</div>`}
+      <div class="score-foot">
+        <span>Total <b>${S.kills}</b></span>
+        ${res.earned?`<span class="earned">▲ ${res.earned} ready</span>`:""}
+        <span>${nextR?`Next: ${nextR.name} at ${nextR.at}`:"Nuke secured"}</span>
+      </div>
+    </div>
+    <button class="next" id="nextBtn" type="button">${last?"After-action report":"Next round"} ▸</button>`;
+  res.fresh=false;
+  $("result").hidden=false;
+  $("nextBtn").onclick = next;
+  $("nextBtn").focus({preventScroll:true});
+  $("play").scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+
+function renderAAR(){
+  const top = REWARDS.filter(r=>S.best>=r.at).pop();
+  const emo = S.results.map(r=>r.tier===null?KIA.emoji:TIERS[r.tier].emoji).join("");
+  const rank = S.kills>=28?"Legend":S.kills>=21?"Veteran":S.kills>=14?"Hardened":S.kills>=8?"Regular":"Recruit";
+  const share = `KILLSTREAK ${S.mode==="daily"?"#"+S.day:"FFA"} — ${S.kills} kills\n${emo}\nBest streak: ${S.best}${top?" ("+top.name+")":""}`;
+  let statsHtml="";
+  if(S.mode==="daily"){
+    const st = store.get("ks-stats")||{played:0,nukes:0,best:0,total:0};
+    statsHtml = `<div><span class="eyebrow">Ops played</span><span class="v">${st.played}</span></div>
+      <div><span class="eyebrow">Avg kills</span><span class="v">${st.played?(st.total/st.played).toFixed(1):"0"}</span></div>
+      <div><span class="eyebrow">Best op</span><span class="v">${st.best}</span></div>
+      <div><span class="eyebrow">Nukes called</span><span class="v">${st.nukes}</span></div>`;
+  }
+  $("aar").innerHTML = `
+    <div><h2>After-action report</h2><p class="rank">Rank: ${rank}</p></div>
+    <div class="aarstats">
+      <div><span class="eyebrow">Total kills</span><span class="v">${S.kills}</span></div>
+      <div><span class="eyebrow">Best streak</span><span class="v">${S.best}</span></div>
+      <div><span class="eyebrow">Top reward</span><span class="v" style="font-size:18px">${top?top.name:"None"}</span></div>
+      <div><span class="eyebrow">Nuke answers</span><span class="v">${S.results.filter(r=>r.tier===5).length}</span></div>
+    </div>
+    <div class="emojirow" aria-label="Round results">${emo}</div>
+    <div class="rounds">${S.results.map((r,i)=>{const p=byId(S.ids[i]);const t=r.tier===null?KIA:TIERS[r.tier];
+      return `<div class="row" style="border-left-color:${t.color}"><span class="t" style="color:var(--muted)">R${i+1}</span>
+      <div><div class="q">${esc(p.q)}</div><div class="a">${r.answer?esc(r.answer):"—"}</div></div>
+      <span class="t" style="color:${t.color}">${t.name} ${t.kills?"+"+t.kills:""}</span></div>`;}).join("")}</div>
+    ${statsHtml?`<div class="aarstats">${statsHtml}</div>`:""}
+    <textarea class="share-text" id="shareText" rows="3" readonly aria-label="Share text">${share}</textarea>
+    <div class="actions">
+      <button class="primary" id="copyBtn" type="button">Copy result</button>
+      ${S.mode==="daily"?`<button class="ghost" id="ffaBtn" type="button">Play free-for-all</button><span class="countdown" id="countdown"></span>`
+                        :`<button class="ghost" id="againBtn" type="button">New free-for-all</button>`}
+    </div>`;
+  $("aar").hidden=false;
+  $("copyBtn").onclick = ()=>{
+    const ta=$("shareText");
+    const fallback=()=>{ta.select();toast("Select and copy the text above");};
+    try{ navigator.clipboard.writeText(share).then(()=>toast("Copied to clipboard"),fallback); }catch(e){ fallback(); }
+  };
+  if($("ffaBtn")) $("ffaBtn").onclick=()=>switchMode("ffa");
+  if($("againBtn")) $("againBtn").onclick=()=>switchMode("ffa");
+  tickCountdown();
+}
+let cdTimer;
+function tickCountdown(){
+  clearInterval(cdTimer);
+  const el=$("countdown"); if(!el) return;
+  const upd=()=>{const n=new Date(),m=new Date(n);m.setHours(24,0,0,0);const s=Math.max(0,Math.floor((m-n)/1000));
+    el.textContent=`Next op in ${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor(s/60)%60).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;};
+  upd(); cdTimer=setInterval(upd,1000);
+}
+
+/* ---------- countdown + clock ---------- */
+let cdHandle=null, tEnd=null, tPaused=null, raf=0;
+function beginRound(){
+  clearTimeout(cdHandle); stopTimer(); tPaused=null;
+  phase="countdown"; $("feedback").textContent=""; $("guess").value="";
+  render();
+  let n=3;
+  const show=()=>{const el=$("cdNum");el.textContent=n;el.classList.remove("tick");void el.offsetWidth;el.classList.add("tick");};
+  show();
+  const step=()=>{ n--; if(n>0){ show(); cdHandle=setTimeout(step,700); } else { goLive(); } };
+  cdHandle=setTimeout(step,700);
+}
+function goLive(){ phase="live"; render(); startTimer(); $("guess").focus({preventScroll:true}); }
+function drawTimer(left){
+  const bar=$("tbar"), num=$("tnum");
+  bar.style.width=(left/TIME*100)+"%";
+  bar.classList.toggle("warn",left<=5&&left>3); bar.classList.toggle("crit",left<=3);
+  num.textContent=left.toFixed(1); num.classList.toggle("crit",left<=3);
+}
+function startTimer(ms){ tEnd=performance.now()+(ms??TIME*1000); tPaused=null; cancelAnimationFrame(raf); loop(); }
+function stopTimer(){ tEnd=null; cancelAnimationFrame(raf); }
+function loop(){
+  if(tEnd===null) return;
+  const left=Math.max(0,(tEnd-performance.now())/1000);
+  drawTimer(left);
+  if(left<=0){ stopTimer(); timeout(); return; }
+  raf=requestAnimationFrame(loop);
+}
+function loseLife(msg){
+  S.lives--;
+  $("play").classList.remove("shake"); void $("play").offsetWidth; $("play").classList.add("shake");
+  if(S.lives<=0){ endRound(null,null,msg.kia); return; }
+  $("feedback").className="feedback bad";
+  $("feedback").textContent=`${msg.text} ${S.lives} ${S.lives===1?"life":"lives"} left. Clock reset.`;
+  save(); renderHud(); startTimer();
+  $("guess").select();
+}
+function timeout(){ if(phase==="live") loseLife({text:"Too slow.", kia:"Out of time"}); }
+
+/* ---------- actions ---------- */
+function fire(e){
+  e.preventDefault();
+  if(phase!=="live") return;
+  const val=$("guess").value.trim(); if(!val) return;
+  const hit=match(byId(S.ids[S.round]),val);
+  if(!hit) return loseLife({text:`Missed: "${val}" isn't on the list.`, kia:"Out of lives"});
+  endRound(hit.tier,hit.name);
+}
+function endRound(tier,answer,why){
+  stopTimer(); tPaused=null;
+  const t = tier===null?KIA:TIERS[tier];
+  const r = {tier,answer,fresh:true,quip: tier===null ? (why==="Out of time"?"The clock got you. Streak lost.":"Three misses. Streak lost.") : rand(t.lines), why};
+  S.results[S.round]=r; S.roundOver=true;
+  S.feed.push({r:S.round+1,text:answer||"KIA",kills:t.kills,color:t.color});
+  if(tier===null){ S.streak=0; }
+  else{
+    const before=S.streak;
+    S.kills+=t.kills; S.streak+=t.kills; S.best=Math.max(S.best,S.streak);
+    const earned=REWARDS.filter(x=>before<x.at && S.streak>=x.at);
+    earned.forEach(x=>S.feed.push({reward:x.name}));
+    const top=earned[earned.length-1];
+    if(top){ r.earned=top.name; if(top.at===25) nuke(); else toast(`${top.name} ready`); }
+    ["killsV","streakV"].forEach(id=>{const el=$(id);el.classList.remove("bump");void el.offsetWidth;el.classList.add("bump");});
+  }
+  phase="result"; save(); render();
+}
+function next(){
+  if(S.round>=ROUNDS-1){
+    S.done=true; phase="aar";
+    if(S.mode==="daily" && !S.counted){
+      const st=store.get("ks-stats")||{played:0,nukes:0,best:0,total:0};
+      st.played++; st.total+=S.kills; st.best=Math.max(st.best,S.kills); if(S.best>=25) st.nukes++;
+      store.set("ks-stats",st); S.counted=true;
+    }
+    save(); render(); window.scrollTo({top:0,behavior:"smooth"}); return;
+  }
+  S.round++; S.lives=LIVES; S.roundOver=false; save();
+  beginRound();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function giveUp(){ if(phase==="live") endRound(null,null,"Pulled out"); }
+function deploy(){
+  if(S.done){ phase="aar"; render(); return; }
+  if(S.roundOver){ phase="result"; render(); return; }
+  beginRound();
+}
+function switchMode(m){
+  clearTimeout(cdHandle); stopTimer(); tPaused=null; $("help").hidden=true;
+  if(m==="daily"){ S=loadDaily(); phase = S.done?"aar":"lobby"; render(); }
+  else { S=freshState("ffa"); beginRound(); }
+}
+function openHelp(){
+  if(!$("help").hidden) return closeHelp();
+  if(phase==="live" && tEnd!==null){ tPaused=tEnd-performance.now(); stopTimer(); }
+  if(phase==="countdown"){ clearTimeout(cdHandle); }
+  $("help").hidden=false;
+}
+function closeHelp(){
+  $("help").hidden=true;
+  if(phase==="live"){ startTimer(tPaused??undefined); $("guess").focus({preventScroll:true}); }
+  else if(phase==="countdown") beginRound();
+}
+
+/* ---------- fx ---------- */
+let toastT;
+function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2200);}
+function nuke(){const n=$("nuke");n.hidden=false;setTimeout(()=>n.hidden=true,2600);}
+
+/* ---------- wire up ---------- */
+$("form").addEventListener("submit",fire);
+$("giveUp").onclick=giveUp;
+$("deployBtn").onclick=deploy;
+$("lobbyFfa").onclick=()=>switchMode("ffa");
+$("modeDaily").onclick=()=>switchMode("daily");
+$("modeFfa").onclick=()=>switchMode("ffa");
+$("helpBtn").onclick=openHelp;
+$("helpClose").onclick=closeHelp;
+
+window.claude?.hot?.snapshot?.(()=>({S}));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>
