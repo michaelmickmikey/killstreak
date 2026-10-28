@@ -571,7 +571,15 @@ function pick(seed){
   return arr.slice(0,ROUNDS);
 }
 const byId = id => BANK.find(b=>b.id===id);
-function todayNum(){const d=new Date();return Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(2026,9,28))/864e5)+1;}
+/* Everyone shares one clock, so the daily op changes at the same moment worldwide. */
+const OP_TIMEZONE = "Australia/Sydney";   // new op drops at midnight in this timezone
+function opClock(){
+  const parts={}; new Intl.DateTimeFormat("en-GB",{timeZone:OP_TIMEZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"})
+    .formatToParts(new Date()).forEach(p=>parts[p.type]=+p.value);
+  return parts; // {year,month,day,hour,minute,second}
+}
+function todayNum(){const c=opClock();return Math.round((Date.UTC(c.year,c.month-1,c.day)-Date.UTC(2026,9,28))/864e5)+1;}
+function opDateLabel(){const c=opClock();return new Date(Date.UTC(c.year,c.month-1,c.day)).toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long",timeZone:"UTC"});}
 const store = {
   get(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
@@ -622,7 +630,7 @@ function render(){
 function renderLobby(){
   const started = S.results.length>0 || S.round>0;
   $("lobbyEyebrow").textContent = S.mode==="daily"
-    ? `Daily op #${S.day} · ${new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}`
+    ? `Daily op #${S.day} · ${opDateLabel()}`
     : "Free-for-all · random prompts, play as often as you like";
   $("deployBtn").textContent = started ? `RESUME · ROUND ${S.round+1}` : "DEPLOY";
   $("lobbyFfa").hidden = S.mode!=="daily";
@@ -746,7 +754,7 @@ let cdTimer;
 function tickCountdown(){
   clearInterval(cdTimer);
   const el=$("countdown"); if(!el) return;
-  const upd=()=>{const n=new Date(),m=new Date(n);m.setHours(24,0,0,0);const s=Math.max(0,Math.floor((m-n)/1000));
+  const upd=()=>{const c=opClock();const s=Math.max(0,86400-(c.hour*3600+c.minute*60+c.second));
     el.textContent=`Next op in ${String(Math.floor(s/3600)).padStart(2,"0")}:${String(Math.floor(s/60)%60).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;};
   upd(); cdTimer=setInterval(upd,1000);
 }
