@@ -78,9 +78,6 @@ button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid
 .stat .v{font-family:var(--mono);font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums;align-self:flex-start;transform-origin:left center}
 .stat .v.bump{animation:bump .45s}
 @keyframes bump{30%{transform:scale(1.35);color:var(--accent)}}
-.lives{display:flex;gap:6px;align-items:center;height:29px}
-.life{width:16px;height:22px;background:var(--ok);clip-path:polygon(50% 0,100% 18%,100% 60%,50% 100%,0 60%,0 18%);transition:background .2s}
-.life.lost{background:var(--line)}
 
 /* ladder */
 .ladder{position:relative;padding:28px 6px 48px}
@@ -268,7 +265,7 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);paddin
         <div class="stat"><span class="eyebrow">Round</span><span class="v" id="roundV">1/7</span></div>
         <div class="stat"><span class="eyebrow">Kills</span><span class="v" id="killsV">0</span></div>
         <div class="stat"><span class="eyebrow">Streak</span><span class="v" id="streakV">0</span></div>
-        <div class="stat"><span class="eyebrow">Lives</span><div class="lives" id="lives"></div></div>
+        <div class="stat"><span class="eyebrow">Best streak</span><span class="v" id="bestV">0</span></div>
       </section>
 
       <section class="ladder" aria-label="Killstreak progress">
@@ -331,11 +328,11 @@ const REWARDS = [
   {at:3, name:"UAV", short:"UAV"}, {at:5, name:"Predator Missile", short:"Predator"}, {at:7, name:"Harrier Strike", short:"Harrier"},
   {at:11, name:"Chopper Gunner", short:"Chopper Gunner"}, {at:15, name:"EMP", short:"EMP"}, {at:25, name:"Tactical Nuke", short:"Tactical Nuke"}
 ];
-const ROUNDS = 7, LIVES = 3, TIME = 20, KEY = "ks2-daily-";
+const ROUNDS = 7, TIME = 20, KEY = "ks2-daily-";
 const RULES = [
   "Seven prompts a day, the same for everyone. Give one answer per prompt.",
-  "The clock gives you 20 seconds. A wrong answer or running out of time costs a life.",
-  "Lose all 3 lives and you're KIA: no kills for the round, and your streak resets.",
+  "You get 20 seconds per prompt and unlimited guesses. Wrong answers cost nothing but time.",
+  "If the clock runs out you're KIA: no kills for the round, and your streak resets.",
   "Every prompt hides one deep-cut answer: the Nuke. Chain 25 kills without dying to call in a Tactical Nuke."
 ];
 
@@ -587,7 +584,7 @@ let S, phase = "lobby"; // lobby | countdown | live | result | aar
 function freshState(mode){
   const day=todayNum();
   const seed = mode==="daily" ? day*9973+17 : Math.floor(Math.random()*1e9);
-  return {mode, day, ids:pick(seed), round:0, lives:LIVES, kills:0, streak:0, best:0, results:[], feed:[], done:false, roundOver:false};
+  return {mode, day, ids:pick(seed), round:0, kills:0, streak:0, best:0, results:[], feed:[], done:false, roundOver:false};
 }
 function save(){ if(S.mode==="daily") store.set(KEY+S.day,S); }
 function loadDaily(){ return store.get(KEY+todayNum()) || freshState("daily"); }
@@ -604,7 +601,7 @@ function buildStatic(){
   const rules = RULES.map(r=>`<li>${r}</li>`).join("");
   $("rulesList").innerHTML = rules; $("helpRules").innerHTML = rules;
   $("tierTable").innerHTML = TIERS.map(t=>`<div class="trow" style="--c:${t.color}"><span class="tn">${t.name}</span><span class="tk">+${t.kills}</span><span class="td">${t.desc}</span></div>`).join("")
-    + `<div class="trow" style="--c:var(--danger)"><span class="tn">KIA</span><span class="tk">0</span><span class="td">Out of lives. Streak resets to zero.</span></div>`;
+    + `<div class="trow" style="--c:var(--danger)"><span class="tn">KIA</span><span class="tk">0</span><span class="td">Out of time. Streak resets to zero.</span></div>`;
   $("notches").innerHTML = REWARDS.map((r,i)=>`<div class="notch${i===REWARDS.length-1?" last":""}${i%2?" alt":""}" data-at="${r.at}" style="left:${r.at/25*100}%"><span class="n">${r.at}</span><span class="name">${r.short}</span></div>`).join("");
 }
 
@@ -637,7 +634,7 @@ function renderHud(){
   $("roundV").textContent = `${Math.min(S.round+1,ROUNDS)}/${ROUNDS}`;
   $("killsV").textContent = S.kills;
   $("streakV").textContent = S.streak;
-  $("lives").innerHTML = Array.from({length:LIVES},(_,i)=>`<span class="life${i>=S.lives?" lost":""}"></span>`).join("");
+  $("bestV").textContent = S.best;
   $("fill").style.width = Math.min(S.streak,25)/25*100+"%";
   $("fill").classList.toggle("nuked",S.streak>=25);
   document.querySelectorAll(".notch").forEach(n=>n.classList.toggle("hit",S.streak>=+n.dataset.at));
@@ -672,7 +669,7 @@ function renderResult(p){
     <div class="score${kia?" kia":""}" style="--c:${tier.color}">
       ${!kia && res.fresh ? `<div class="hitmarker" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`:""}
       <div class="stamp">${kia?"KIA":tier.name.toUpperCase()}</div>
-      <div class="your">${kia?(res.why||"Out of lives"):`“${esc(res.answer)}”`}</div>
+      <div class="your">${kia?(res.why||"Out of time"):`“${esc(res.answer)}”`}</div>
       <div class="pts">${kia?"0 kills · streak reset":`<b>+${tier.kills} ${tier.kills===1?"kill":"kills"}</b> · streak ${S.streak}`}</div>
       <p class="quip">${esc(res.quip||"")}</p>
       ${kia?"":`<div class="meter" aria-label="Rarity scale">${meter}</div>`}
@@ -782,16 +779,14 @@ function loop(){
   if(left<=0){ stopTimer(); timeout(); return; }
   raf=requestAnimationFrame(loop);
 }
-function loseLife(msg){
-  S.lives--;
+function miss(val){
+  S.misses=(S.misses||0)+1;
   $("play").classList.remove("shake"); void $("play").offsetWidth; $("play").classList.add("shake");
-  if(S.lives<=0){ endRound(null,null,msg.kia); return; }
   $("feedback").className="feedback bad";
-  $("feedback").textContent=`${msg.text} ${S.lives} ${S.lives===1?"life":"lives"} left. Clock reset.`;
-  save(); renderHud(); startTimer();
+  $("feedback").textContent=`Missed: "${val}" isn't on the list. Keep firing.`;
   $("guess").select();
 }
-function timeout(){ if(phase==="live") loseLife({text:"Too slow.", kia:"Out of time"}); }
+function timeout(){ if(phase==="live") endRound(null,null,"Out of time"); }
 
 /* ---------- actions ---------- */
 function fire(e){
@@ -799,13 +794,13 @@ function fire(e){
   if(phase!=="live") return;
   const val=$("guess").value.trim(); if(!val) return;
   const hit=match(byId(S.ids[S.round]),val);
-  if(!hit) return loseLife({text:`Missed: "${val}" isn't on the list.`, kia:"Out of lives"});
+  if(!hit) return miss(val);
   endRound(hit.tier,hit.name);
 }
 function endRound(tier,answer,why){
   stopTimer(); tPaused=null;
   const t = tier===null?KIA:TIERS[tier];
-  const r = {tier,answer,fresh:true,quip: tier===null ? (why==="Out of time"?"The clock got you. Streak lost.":"Three misses. Streak lost.") : rand(t.lines), why};
+  const r = {tier,answer,fresh:true,quip: tier===null ? (why==="Out of time"?"The clock got you. Streak lost.":"You pulled out. Streak lost.") : rand(t.lines), why};
   S.results[S.round]=r; S.roundOver=true;
   S.feed.push({r:S.round+1,text:answer||"KIA",kills:t.kills,color:t.color});
   if(tier===null){ S.streak=0; }
@@ -830,7 +825,7 @@ function next(){
     }
     save(); render(); window.scrollTo({top:0,behavior:"smooth"}); return;
   }
-  S.round++; S.lives=LIVES; S.roundOver=false; save();
+  S.round++; S.roundOver=false; save();
   beginRound();
   window.scrollTo({top:0,behavior:"smooth"});
 }
