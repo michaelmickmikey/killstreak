@@ -178,7 +178,20 @@ form{display:flex;gap:8px}
 .aarstats .v{font-family:var(--mono);font-size:24px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .emojirow{font-size:28px;letter-spacing:4px}
 .rounds{display:grid;gap:6px}
-.rounds .row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 10px;background:var(--bg);border-left:3px solid var(--line)}
+.rounds .round{background:var(--bg);border-left:3px solid var(--c)}
+.rounds .row{display:grid;grid-template-columns:28px minmax(0,1fr) auto 14px;gap:10px;align-items:baseline;padding:8px 10px;cursor:pointer;list-style:none}
+.rounds .row::-webkit-details-marker{display:none}
+.rounds .row:hover{background:var(--panel-2)}
+.rounds .chev{color:var(--muted);transition:transform .2s}
+.rounds .round[open] .chev{transform:rotate(180deg)}
+.rounds .round[open] .row{background:var(--panel-2)}
+.intel{display:grid;gap:8px;padding:12px 12px 14px 48px;border-top:1px solid var(--line)}
+.intel .tierrow{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:start}
+.intel .lbl{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding-top:3px;color:var(--c)}
+.intel .ans{display:flex;flex-wrap:wrap;gap:5px}
+.intel .ans span{font-size:13px;padding:2px 7px;background:var(--panel);border:1px solid var(--line)}
+.intel .ans span.mine{background:var(--c);border-color:var(--c);color:var(--bg);font-weight:700}
+@media (max-width:760px){.intel{padding-left:12px}.intel .tierrow{grid-template-columns:minmax(0,1fr);gap:4px}}
 .rounds .row .q{color:var(--muted);font-size:13px}
 .rounds .row .a{font-weight:600}
 .rounds .row .t{font-family:var(--mono);font-size:13px;white-space:nowrap}
@@ -318,7 +331,7 @@ const REWARDS = [
   {at:3, name:"UAV", short:"UAV"}, {at:5, name:"Predator Missile", short:"Predator"}, {at:7, name:"Harrier Strike", short:"Harrier"},
   {at:11, name:"Chopper Gunner", short:"Chopper Gunner"}, {at:15, name:"EMP", short:"EMP"}, {at:25, name:"Tactical Nuke", short:"Tactical Nuke"}
 ];
-const ROUNDS = 7, LIVES = 3, TIME = 20, KEY = "ks2-daily-";
+const ROUNDS = 7, LIVES = 3, TIME = 8, KEY = "ks2-daily-";
 const RULES = [
   "Seven prompts a day, the same for everyone. Give one answer per prompt.",
   "The clock gives you 8 seconds. A wrong answer or running out of time costs a life.",
@@ -699,10 +712,12 @@ function renderAAR(){
       <div><span class="eyebrow">Nuke answers</span><span class="v">${S.results.filter(r=>r.tier===5).length}</span></div>
     </div>
     <div class="emojirow" aria-label="Round results">${emo}</div>
+    <h3 class="eyebrow" style="margin:0">Intel debrief · tap a round to see every answer</h3>
     <div class="rounds">${S.results.map((r,i)=>{const p=byId(S.ids[i]);const t=r.tier===null?KIA:TIERS[r.tier];
-      return `<div class="row" style="border-left-color:${t.color}"><span class="t" style="color:var(--muted)">R${i+1}</span>
+      return `<details class="round" style="--c:${t.color}"><summary class="row"><span class="t" style="color:var(--muted)">R${i+1}</span>
       <div><div class="q">${esc(p.q)}</div><div class="a">${r.answer?esc(r.answer):"—"}</div></div>
-      <span class="t" style="color:${t.color}">${t.name} ${t.kills?"+"+t.kills:""}</span></div>`;}).join("")}</div>
+      <span class="t" style="color:${t.color}">${t.name} ${t.kills?"+"+t.kills:""}</span><span class="chev" aria-hidden="true">▾</span></summary>
+      ${intelFor(p,r.answer)}</details>`;}).join("")}</div>
     ${statsHtml?`<div class="aarstats">${statsHtml}</div>`:""}
     <textarea class="share-text" id="shareText" rows="3" readonly aria-label="Share text">${share}</textarea>
     <div class="actions">
@@ -719,6 +734,16 @@ function renderAAR(){
   if($("ffaBtn")) $("ffaBtn").onclick=()=>switchMode("ffa");
   if($("againBtn")) $("againBtn").onclick=()=>switchMode("ffa");
   tickCountdown();
+}
+function intelFor(p,mine){
+  const list=entries(p);
+  return `<div class="intel">${[5,4,3,2,1,0].map(ti=>{
+    const names=list.filter(e=>e.tier===ti).map(e=>e.name);
+    if(!names.length) return "";
+    const t=TIERS[ti];
+    return `<div class="tierrow" style="--c:${t.color}"><span class="lbl">${t.name} +${t.kills}</span>
+      <div class="ans">${names.map(n=>`<span class="${n===mine?"mine":""}">${esc(n)}</span>`).join("")}</div></div>`;
+  }).join("")}</div>`;
 }
 let cdTimer;
 function tickCountdown(){
